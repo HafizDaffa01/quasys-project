@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuaSYS</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%231e293b'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2360a5fa'>Q</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+    <button class="tbtn" id="menu-btn" style="display:none" onclick="document.querySelector('aside').classList.toggle('open')">menu</button>
+    <div class="brand"><div class="q">Q</div>QuaSYS</div>
+    <span class="hsep">/</span>
+    <span class="hitem" id="h-user">--</span>
+    <span class="hsep">/</span>
+    <span class="hitem" id="h-cwd">~</span>
+    <div class="hr">
+        <div class="dot" id="s-dot"></div>
+        <span class="dot-label" id="s-label">connecting</span>
+        <button class="tbtn" onclick="toggleTheme()" title="Toggle theme">theme</button>
+    </div>
+</header>
+
+<div class="layout">
+    <aside>
+        <div class="aside-head">
+            <div class="aside-logo"><div class="q">Q</div></div>
+            <button class="aside-toggle" onclick="toggleSidebar()" title="Expand sidebar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 19l-7-7 7-7"/></svg>
+            </button>
+        </div>
+        <div class="nav-group">
+            <div class="nav-title">system</div>
+            <a class="nav-link on" data-view="terminal" href="/terminal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span>Terminal</span>
+            </a>
+            <a class="nav-link" data-view="files" href="/files">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span>Files</span>
+            </a>
+            <a class="nav-link" data-view="system" href="/system">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span>System</span>
+            </a>
+            <a class="nav-link" data-view="processes" href="/processes">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Processes</span>
+            </a>
+        </div>
+        <div class="nav-group">
+            <div class="nav-title">ai</div>
+            <a class="nav-link" data-view="assistant" href="/assistant">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a4 4 0 0 0-4 4v2a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4z"/><path d="M16 14H8a4 4 0 0 0-4 4v2h16v-2a4 4 0 0 0-4-4z"/></svg><span>Assistant</span>
+            </a>
+            <a class="nav-link" data-view="about" href="/about">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>About</span>
+            </a>
+        </div>
+        <div class="aside-foot" id="aside-foot">v0.1.0</div>
+    </aside>
+
+    <div class="main">
+        <div class="view active" id="view-terminal">
+            <div class="tui-box">
+                <div class="tui-title">shell <span class="sep">/</span> <span id="term-title-cwd">~</span></div>
+                <div id="term"></div>
+            </div>
+            <div class="input-row">
+                <div class="input-box">
+                    <span class="pfx" id="prompt">$</span>
+                    <input id="cmd" type="text" placeholder="enter command..." autofocus>
+                    <button class="send-btn" onclick="termSend()">enter</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="view" id="view-files">
+            <div class="tui-box">
+                <div class="tui-title">files <span class="sep">/</span> <span id="files-title-path">/</span></div>
+                <div class="files-bar">
+                    <button onclick="filesUp()">^ up</button>
+                    <button onclick="filesRefresh()">refresh</button>
+                    <input id="files-path" type="text" placeholder="path..." spellcheck="false">
+                    <button onclick="filesNavInput()">go</button>
+                </div>
+                <div class="files-list" id="files-list"></div>
+            </div>
+        </div>
+
+        <div class="view" id="view-system">
+            <div class="sys-dash" id="sys-dash">
+                <div style="color:var(--text-3);text-align:center;padding:60px">loading system info...</div>
+            </div>
+        </div>
+
+        <div class="view" id="view-processes">
+            <div class="tui-box">
+                <div class="tui-title">processes <span class="sep">/</span> <span id="proc-count">0</span> total</div>
+                <div class="proc-bar">
+                    <button onclick="procRefresh()">refresh</button>
+                    <span style="flex:1"></span>
+                    <span id="proc-sort-label">sorted by cpu</span>
+                </div>
+                <div class="proc-table-wrap">
+                    <table class="proc-table">
+                        <thead><tr><th>PID</th><th>CPU%</th><th>MEM%</th><th>VSZ</th><th>RSS</th><th>TTY</th><th>STAT</th><th>START</th><th>TIME</th><th>USER</th><th class="cmd-col">COMMAND</th></tr></thead>
+                        <tbody id="proc-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="view" id="view-assistant">
+            <div class="tui-box">
+                <div class="tui-title">ai assistant</div>
+                <div class="ai-msgs" id="ai-msgs">
+                    <div class="ai-empty">
+                        <div class="icon">[ ]</div>
+                        <span>AI engine not connected</span>
+                        <span class="sub">llama.cpp / gemini integration pending</span>
+                    </div>
+                </div>
+                <div class="ai-input">
+                    <div class="input-box">
+                        <input id="ai-input" type="text" placeholder="type a message..." disabled>
+                        <button class="send-btn" disabled>send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="view" id="view-about">
+            <div class="about-view">
+                <div class="about-card">
+                    <div class="head">about quasys</div>
+                    <div class="body">
+                        <p>Web-based OS Assistant / Agentic AI. Full local system control via browser.</p>
+                        <div class="kv"><span class="k">version</span><span class="v">0.1.0-mvp</span></div>
+                        <div class="kv"><span class="k">backend</span><span class="v">C++17 / Crow</span></div>
+                        <div class="kv"><span class="k">frontend</span><span class="v">vanilla html/css/js</span></div>
+                        <div class="kv"><span class="k">build</span><span class="v">cmake 3.20+</span></div>
+                        <div class="kv"><span class="k">ai</span><span class="v">llama.cpp / gemini</span></div>
+                        <div class="kv"><span class="k">license</span><span class="v">tbd</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <span>quasys v0.1.0</span>
+    <span class="fsep">/</span>
+    <span id="f-ws">api:--</span>
+    <span class="fsep">/</span>
+    <span id="f-cwd">~</span>
+    <span class="fsep">/</span>
+    <span>127.0.0.1:8080</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
