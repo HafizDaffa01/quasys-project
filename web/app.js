@@ -45,6 +45,8 @@ async function apiExec(cmd) {
 function getViewFromPath() {
     const p = window.location.pathname;
     if (p.startsWith('/files')) return 'files';
+    if (p.startsWith('/assistant')) return 'assistant';
+    if (p.startsWith('/settings')) return 'settings';
     const name = p.replace(/^\/+/, '').replace(/\/+$/, '');
     return name || 'terminal';
 }
@@ -52,6 +54,10 @@ function getFilesPathFromURL() {
     const p = window.location.pathname;
     if (!p.startsWith('/files/')) return null;
     return decodeURIComponent(p.slice('/files/'.length)) || '/';
+}
+function getConvFromURL() {
+    const m = window.location.pathname.match(/^\/assistant\/([a-f0-9-]+)$/);
+    return m ? m[1] : null;
 }
 
 function switchView(name) {
@@ -71,6 +77,12 @@ function switchView(name) {
     if (name === 'system') sysLoad();
     if (name === 'processes') procRefresh();
     if (name === 'terminal') cmdInput.focus();
+    if (name === 'assistant') {
+        const uuid = getConvFromURL();
+        if (uuid) chatLoad(uuid);
+        else if (!chatUuid) chatClear();
+        convListLoad();
+    }
 }
 
 function navigate(path, push) {
@@ -309,6 +321,198 @@ async function procRefresh() {
     $('#proc-count').textContent = lines.length;
 }
 
+/* ---- assistant chat ---- */
+let chatHistory = [];
+let chatWaiting = false;
+let chatUuid = null;
+let aiProvider = 'gemini';
+let geminiKey = '';
+let claudeKey = '';
+
+function chatMsg(role, text) {
+    const el = document.createElement('div');
+    el.className = 'ai-msg ' + role;
+    el.innerHTML = `<div class="role">${esc(role)}</div><div class="body">${esc(text)}</div>`;
+    return el;
+}
+
+function chatAppend(role, text) {
+    const msgs = $('#ai-msgs');
+    const empty = $('#ai-empty');
+    if (empty) empty.remove();
+    const el = chatMsg(role, text);
+    msgs.appendChild(el);
+    msgs.scrollTop = msgs.scrollHeight;
+    return el;
+}
+
+async function chatSend() {
+    const input = $('#ai-input');
+    const text = input.value.trim();
+    if (!text || chatWaiting) return;
+    input.value = '';
+
+    chatAppend('user', text);
+    chatHistory.push({role: 'user', content: text});
+
+    chatWaiting = true;
+    $('#ai-send').disabled = true;
+
+    const typing = document.createElement('div');
+    typing.className = 'ai-typing';
+    typing.textContent = 'thinking...';
+    $('#ai-msgs').appendChild(typing);
+    $('#ai-msgs').scrollTop = $('#ai-msgs').scrollHeight;
+
+    try {
+        const r = await fetch('/api/chat', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({history: chatHistory})
+        });
+        const d = await r.json();
+        typing.remove();
+        if (d.error) {
+            chatAppend('assistant', '[error: ' + d.error + ']');
+        } else {
+            chatAppend('assistant', d.reply);
+            chatHistory.push({role: 'model', content: d.reply});
+            chatAutoSave();
+        }
+    } catch (e) {
+        typing.remove();
+        chatAppend('assistant', '[error: ' + e.message + ']');
+    }
+
+    chatWaiting = false;
+    $('#ai-send').disabled = false;
+    input.focus();
+}
+
+async function chatAutoSave() {
+    if (chatHistory.length < 1) return;
+    try {
+        const r = await fetch('/api/chat/save', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({uuid: chatUuid || '', history: chatHistory})
+        });
+        const d = await r.json();
+        if (d.uuid) {
+            if (!chatUuid) {
+                chatUuid = d.uuid;
+                history.replaceState(null, '', '/assistant/' + chatUuid);
+            }
+            convListLoad();
+        }
+    } catch {}
+}
+
+function chatClear() {
+    chatHistory = [];
+    chatUuid = null;
+    const msgs = $('#ai-msgs');
+    msgs.innerHTML = '<div class="ai-empty" id="ai-empty"><div class="icon">[ ]</div><span>QuaSYS AI</span><span class="sub">Gemini powered assistant</span></div>';
+    history.pushState(null, '', '/assistant');
+    convListLoad();
+}
+
+async function chatLoad(uuid) {
+    try {
+        const r = await fetch('/api/chat/load/' + uuid);
+        const d = await r.json();
+        if (d.error) return;
+        chatUuid = uuid;
+        chatHistory = d.history || [];
+        const msgs = $('#ai-msgs');
+        msgs.innerHTML = '';
+        for (const m of chatHistory) chatAppend(m.role, m.content);
+        history.pushState(null, '', '/assistant/' + uuid);
+        convListHighlight();
+    } catch {}
+}
+
+async function convListLoad() {
+    try {
+        const r = await fetch('/api/chat/list');
+        const d = await r.json();
+        const list = $('#conv-list');
+        list.innerHTML = '<div class="nav-title">conversations</div>';
+        if (!d.conversations || d.conversations.length === 0) {
+            list.innerHTML += '<div class="conv-empty">no conversations yet</div>';
+            return;
+        }
+        for (const c of d.conversations) {
+            const el = document.createElement('div');
+            el.className = 'conv-item';
+            el.dataset.uuid = c.uuid;
+            el.innerHTML = `<span class="conv-title">${esc(c.title)}</span><button class="conv-rename" title="rename">&#9998;</button><button class="conv-del" title="delete">x</button>`;
+            el.addEventListener('click', e => {
+                if (e.target.classList.contains('conv-del')) {
+                    e.stopPropagation();
+                    convDelete(c.uuid);
+                    return;
+                }
+                if (e.target.classList.contains('conv-rename')) {
+                    e.stopPropagation();
+                    convRenameStart(el, c.uuid, c.title);
+                    return;
+                }
+                chatLoad(c.uuid);
+            });
+            list.appendChild(el);
+        }
+        convListHighlight();
+    } catch {}
+}
+
+function convListHighlight() {
+    $$('.conv-item').forEach(el => {
+        el.classList.toggle('on', el.dataset.uuid === chatUuid);
+    });
+}
+
+async function convDelete(uuid) {
+    try {
+        await fetch('/api/chat/delete/' + uuid, {method: 'DELETE'});
+        if (chatUuid === uuid) chatClear();
+        convListLoad();
+    } catch {}
+}
+
+function convRenameStart(el, uuid, oldTitle) {
+    const titleEl = el.querySelector('.conv-title');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'conv-rename-input';
+    input.value = oldTitle;
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const finish = async (save) => {
+        const newTitle = save ? input.value.trim() : oldTitle;
+        if (save && newTitle && newTitle !== oldTitle) {
+            try {
+                await fetch('/api/chat/rename/' + uuid, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title: newTitle})
+                });
+            } catch {}
+        }
+        const span = document.createElement('span');
+        span.className = 'conv-title';
+        span.textContent = newTitle || oldTitle;
+        input.replaceWith(span);
+    };
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+}
+
+$('#ai-input').addEventListener('keydown', e => { if (e.key === 'Enter') chatSend(); });
+
 /* ---- theme ---- */
 function getTheme() { return localStorage.getItem('quasys-theme') || 'dark'; }
 function toggleTheme() {
@@ -354,6 +558,68 @@ function toggleSidebar() {
         document.querySelector('aside').classList.add('collapsed');
 })();
 
+function aiProviderChange() {
+    const sel = $('#ai-provider');
+    aiProvider = sel.value;
+    // save to settings
+    fetch('/api/settings', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({provider: aiProvider, gemini_key: geminiKey, claude_key: claudeKey})
+    });
+}
+
+/* ---- settings ---- */
+function toggleKeyVis(inputId, btn) {
+    const input = $('#' + inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    } else {
+        input.type = 'password';
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    }
+}
+async function settingsLoad() {
+    try {
+        const r = await fetch('/api/settings');
+        const d = await r.json();
+        aiProvider = d.provider || 'gemini';
+        geminiKey = d.gemini_key || '';
+        claudeKey = d.claude_key || '';
+        const provEl = $('#set-provider');
+        const gemEl = $('#set-gemini-key');
+        const clEl = $('#set-claude-key');
+        if (provEl) provEl.value = aiProvider;
+        if (gemEl) gemEl.value = geminiKey;
+        if (clEl) clEl.value = claudeKey;
+        const aiProv = $('#ai-provider');
+        if (aiProv) aiProv.value = aiProvider;
+    } catch {}
+}
+async function settingsSave() {
+    const provider = $('#set-provider').value;
+    const gemini_key = $('#set-gemini-key').value.trim();
+    const claude_key = $('#set-claude-key').value.trim();
+    const status = $('#set-status');
+    try {
+        await fetch('/api/settings', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({provider, gemini_key, claude_key})
+        });
+        aiProvider = provider;
+        geminiKey = gemini_key;
+        claudeKey = claude_key;
+        const aiProv = $('#ai-provider');
+        if (aiProv) aiProv.value = aiProvider;
+        status.textContent = 'saved';
+        status.className = 'settings-status ok';
+    } catch (e) {
+        status.textContent = 'error';
+        status.className = 'settings-status err';
+    }
+    setTimeout(() => { status.textContent = ''; status.className = 'settings-status'; }, 2000);
+}
+
 /* ---- init ---- */
 async function init() {
     try {
@@ -374,5 +640,6 @@ async function init() {
         addLine('failed to connect to backend.', 'err');
     }
     switchView(getViewFromPath());
+    settingsLoad();
 }
 init();

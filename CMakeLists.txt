@@ -18,6 +18,12 @@ add_compile_options(-O3 -march=native)
 set(ASIO_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/deps/asio/asio/include" CACHE PATH "ASIO headers")
 
 find_package(Threads REQUIRED)
+find_package(CURL REQUIRED)
+
+find_library(UUID_LIB uuid)
+if(NOT UUID_LIB)
+  message(FATAL_ERROR "libuuid not found")
+endif()
 
 # Create asio::asio interface target manually
 add_library(asio::asio INTERFACE IMPORTED)
@@ -34,8 +40,8 @@ target_include_directories(Crow INTERFACE
 target_link_libraries(Crow INTERFACE asio::asio)
 
 # --- Main executable ---
-add_executable(quasys src/main.cpp src/util.cpp)
-target_link_libraries(quasys PRIVATE Crow::Crow)
+add_executable(quasys src/main.cpp src/util.cpp src/gemini.cpp src/claude.cpp)
+target_link_libraries(quasys PRIVATE Crow::Crow CURL::libcurl ${UUID_LIB})
 
 # Copy web/ to build dir so static files are served from there
 add_custom_command(TARGET quasys POST_BUILD

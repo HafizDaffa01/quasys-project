@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuaSYS</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%231e293b'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2360a5fa'>Q</text></svg>">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
@@ -54,6 +54,12 @@
             <a class="nav-link" data-view="about" href="/about">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>About</span>
             </a>
+            <a class="nav-link" data-view="settings" href="/settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span>
+            </a>
+        </div>
+        <div class="nav-group conv-list" id="conv-list">
+            <div class="nav-title">conversations</div>
         </div>
         <div class="aside-foot" id="aside-foot">v0.1.0</div>
     </aside>
@@ -111,18 +117,25 @@
 
         <div class="view" id="view-assistant">
             <div class="tui-box">
-                <div class="tui-title">ai assistant</div>
+                <div class="tui-title">
+                    <select class="ai-provider-select" id="ai-provider" onchange="aiProviderChange()">
+                        <option value="gemini">Gemini</option>
+                        <option value="claude">Claude</option>
+                    </select>
+                    <span class="sep">/</span> <span id="ai-model" style="font-size:10px;color:var(--text-3)">auto</span>
+                    <button class="tui-btn" style="margin-left:auto" onclick="chatClear()">clear</button>
+                </div>
                 <div class="ai-msgs" id="ai-msgs">
-                    <div class="ai-empty">
+                    <div class="ai-empty" id="ai-empty">
                         <div class="icon">[ ]</div>
-                        <span>AI engine not connected</span>
-                        <span class="sub">llama.cpp / gemini integration pending</span>
+                        <span>QuaSYS AI</span>
+                        <span class="sub">Gemini powered assistant</span>
                     </div>
                 </div>
                 <div class="ai-input">
                     <div class="input-box">
-                        <input id="ai-input" type="text" placeholder="type a message..." disabled>
-                        <button class="send-btn" disabled>send</button>
+                        <input id="ai-input" type="text" placeholder="ask anything...">
+                        <button class="send-btn" id="ai-send" onclick="chatSend()">send</button>
                     </div>
                 </div>
             </div>
@@ -144,6 +157,47 @@
                 </div>
             </div>
         </div>
+
+        <div class="view" id="view-settings">
+            <div class="about-view">
+                <div class="about-card">
+                    <div class="head">settings</div>
+                    <div class="body">
+                        <div class="settings-group">
+                            <label class="settings-label">provider</label>
+                            <div class="settings-row">
+                                <select class="settings-input" id="set-provider" style="width:auto;cursor:pointer">
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="claude">Anthropic Claude</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="settings-group" style="margin-top:12px">
+                            <label class="settings-label">gemini api key</label>
+                            <div class="settings-pw-wrap">
+                                <input class="settings-input settings-pw" id="set-gemini-key" type="password" placeholder="AIza..." spellcheck="false" autocomplete="off">
+                                <button class="settings-pw-toggle" onclick="toggleKeyVis('set-gemini-key', this)" title="show/hide">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="settings-group" style="margin-top:12px">
+                            <label class="settings-label">claude api key</label>
+                            <div class="settings-pw-wrap">
+                                <input class="settings-input settings-pw" id="set-claude-key" type="password" placeholder="cov_live_..." spellcheck="false" autocomplete="off">
+                                <button class="settings-pw-toggle" onclick="toggleKeyVis('set-claude-key', this)" title="show/hide">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="settings-row" style="margin-top:12px">
+                            <button class="settings-save" onclick="settingsSave()">save</button>
+                            <span class="settings-status" id="set-status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -157,6 +211,6 @@
     <span>127.0.0.1:8080</span>
 </footer>
 
-<script src="app.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>
