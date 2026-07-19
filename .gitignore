@@ -1,0 +1,25 @@
+# Build
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+quasys
+
+# IDE
+.cache/
+.vscode/
+.idea/
+compile_commands.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

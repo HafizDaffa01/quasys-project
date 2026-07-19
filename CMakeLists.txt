@@ -12,39 +12,18 @@ endif()
 # Release optimizations (PRD: -march=native -O3)
 add_compile_options(-O3 -march=native)
 
-# --- Dependencies (local clones in deps/) ---
+# --- Dependencies ---
 
-# ASIO (standalone, used by Crow)
-set(ASIO_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/deps/asio/asio/include" CACHE PATH "ASIO headers")
-
-find_package(Threads REQUIRED)
+find_package(Curses REQUIRED)
 find_package(CURL REQUIRED)
+find_package(Threads REQUIRED)
 
 find_library(UUID_LIB uuid)
 if(NOT UUID_LIB)
   message(FATAL_ERROR "libuuid not found")
 endif()
 
-# Create asio::asio interface target manually
-add_library(asio::asio INTERFACE IMPORTED)
-target_include_directories(asio::asio INTERFACE ${ASIO_INCLUDE_DIR})
-target_compile_definitions(asio::asio INTERFACE ASIO_STANDALONE)
-target_link_libraries(asio::asio INTERFACE Threads::Threads)
-
-# Crow
-add_library(Crow INTERFACE)
-add_library(Crow::Crow ALIAS Crow)
-target_include_directories(Crow INTERFACE
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/deps/crow/include>
-)
-target_link_libraries(Crow INTERFACE asio::asio)
-
 # --- Main executable ---
 add_executable(quasys src/main.cpp src/util.cpp src/gemini.cpp src/claude.cpp)
-target_link_libraries(quasys PRIVATE Crow::Crow CURL::libcurl ${UUID_LIB})
-
-# Copy web/ to build dir so static files are served from there
-add_custom_command(TARGET quasys POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/web $<TARGET_FILE_DIR:quasys>/web
-)
+target_link_libraries(quasys PRIVATE ${CURSES_LIBRARIES} CURL::libcurl Threads::Threads ${UUID_LIB})
+target_include_directories(quasys PRIVATE ${CURSES_INCLUDE_DIRS})

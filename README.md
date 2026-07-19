@@ -1,76 +1,71 @@
 # QuaSYS
 
-Web-based OS Assistant — full local system control from your browser.
+TUI-based system assistant — full local system control from your terminal.
 
 ## What it is
 
-A C++17 backend with a vanilla HTML/CSS/JS frontend. Runs a local web server, executes shell commands, monitors system resources, browses files — all from a terminal-style UI on `http://127.0.0.1:8080`.
+A C++17 terminal UI application with ncurses. Executes shell commands, monitors system resources, browses files, and chats with AI — all from a terminal interface.
 
 ## Quick start
 
-**Prerequisites:** CMake 3.20+, a C++17 compiler, Git.
+**Prerequisites:** CMake 3.20+, a C++17 compiler, ncurses, libcurl, libuuid.
 
 ```bash
-# Clone dependencies (Crow + ASIO)
-git clone --depth 1 https://github.com/CrowCpp/Crow.git deps/crow
-git clone --depth 1 https://github.com/chriskohlhoff/asio.git deps/asio
-
 # Build
 cmake -B build -S .
 cmake --build build
+
+# Setup (configure API keys)
+./build/quasys --setup
 
 # Run
 ./build/quasys
 ```
 
-Open `http://127.0.0.1:8080`.
-
 ## Features
 
 | View | What it does |
 |------|-------------|
-| **Terminal** | Execute shell commands, see output with timestamps. Tracks working directory. |
-| **Files** | Browse directories, navigate with URL paths (`/files/home/user`). |
-| **System** | Live dashboard — CPU, memory, disk, load average, uptime. Refreshes every 3s. |
-| **Processes** | Process table sorted by CPU usage (`ps aux`). |
-| **Assistant** | AI engine placeholder (planned: llama.cpp + Gemini API). |
-| **About** | Project info. |
-
-**UI:** Collapsible sidebar, dark/light theme toggle, SPA routing with clean URLs.
+| **Terminal** | Execute shell commands, tracks working directory |
+| **Files** | Browse directories, navigate into folders, view files |
+| **System** | CPU, memory, disk, load average, uptime |
+| **Processes** | Process table sorted by CPU usage |
+| **Assistant** | AI chat with Gemini or Claude |
+| **Conversations** | Browse and manage saved chats |
+| **Settings** | Configure provider, API keys |
 
 ## Architecture
 
 ```
-src/main.cpp     — Crow server, SPA routes, API endpoints
-src/util.cpp/h   — Shell execution, OS utilities (username, hostname, cwd)
-web/index.html   — HTML shell
-web/style.css    — Terminal-style CSS (slate/blue palette)
-web/app.js       — Routing, terminal, files, system dashboard, processes
-deps/            — Crow (header-only web framework) + ASIO (async I/O)
+src/main.cpp      — TUI (ncurses), views, menu
+src/util.cpp/h    — Shell execution, OS utilities
+src/gemini.cpp/h  — Gemini API provider (libcurl)
+src/claude.cpp/h  — Claude API provider (libcurl)
 ```
 
-## API
+## CLI
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/info` | GET | Returns `{user, host, home}` |
-| `/api/exec` | POST | Executes shell command. Body: `{"cmd": "..."}`. Returns `{output, cwd}` |
+```
+quasys             Launch TUI
+quasys --setup     Configure API keys
+quasys --help      Show help
+quasys --version   Show version
+```
 
-## Security
+## Environment
 
-- Binds to `127.0.0.1` only — no external access.
-- Commands run under current user privileges.
-- No input sanitization yet (MVP).
+- `GEMINI_API_KEY` — Gemini API key (fallback if not set in settings)
 
-## Tech
+## Storage
 
-- **Backend:** C++17, Crow v1.2.0, ASIO
-- **Frontend:** Vanilla HTML5/CSS/JS — no frameworks, no build step
-- **Build:** CMake, source-based local compilation
+- Settings: `~/.quasys/settings.json`
+- Conversations: `~/.quasys/conversations/*.json`
 
-## Status
+## Build
 
-MVP phase. Core views functional. AI engine not yet integrated.
+- **C++17**, CMake 3.20+
+- **Dependencies:** ncurses, libcurl, libuuid
+- **Optimizations:** `-O3 -march=native`
 
 ## License
 
